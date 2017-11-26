@@ -1,31 +1,33 @@
 #pragma once
-#include "cstring"
-#include "cassert"
+
 #include <cstdint>
+#include <vector>
+#include "cassert"
 
 #define MAKE_MATRIX_OPERATION_SCALAR( op )\
-Matrix<VSize,VType> operator op (VType p_scalar)\
+Matrix<VType> operator op (VType scalar)\
 {\
-	Matrix<VSize,VType> out;\
-	for (int i = 0; i<VSize; i++)\
+	Matrix<VType> out;\
+	for (int i = 0; i<m_numRow; i++)\
 	{\
-		for (int j = 0; j<VSize; j++)\
+		for (int j = 0; j<m_numCol	; j++)\
 		{\
-			out[i*VSize + j] = m_data[i*VSize + j] op p_scalar;\
+			out(i,j) = (*this)(i,j) op scalar;\
 		}\
 	}\
 	return out;\
 }
 
 #define MAKE_MATRIX_OPERATION( op )\
-Matrix<VSize,VType> operator op (const Matrix<VSize,VType>& p_other)\
+Matrix<VType> operator op (const Matrix<VType>& other)\
 {\
-	Matrix<VSize,VType> out;\
-	for (int i = 0; i<VSize; i++)\
+	assert(other.ColumnCount() == ColumnCount() && RowCount() == other.RowCount());\
+	Matrix<VType> out;\
+	for (int i = 0; i<m_numRow; i++)\
 	{\
-		for (int j = 0; j<VSize; j++)\
+		for (int j = 0; j<m_numCol	; j++)\
 		{\
-			out[i*VSize + j] = p_other.m_data[i*VSize + j] op m_data[i*VSize + j];\
+			out(i,j) = other(i,j) op (*this)(i,j);\
 		}\
 	}\
 	return out;\
@@ -33,9 +35,9 @@ Matrix<VSize,VType> operator op (const Matrix<VSize,VType>& p_other)\
 
 
 #define MAKE_MATRIX_ASSIGNMENT_OPERATION(assign_op, op)\
-Matrix<VSize,VType>& operator assign_op (const Matrix<VSize,VType>& p_other)\
+Matrix<VType>& operator assign_op (const Matrix<VType>& other)\
 {\
-	m_data = (*this op p_other).m_data;\
+	*this = (*this op other);\
 	return *this;\
 }
 
@@ -67,11 +69,22 @@ namespace doo
 
 		public:
 			Matrix() = default;
-			Matrix(const VType data[VSize]) 
+			Matrix(const Matrix<VType>&) = default;
+			Matrix(Matrix<VType>&&) = default;
+			
+			Matrix(u32 numCol, u32 numRow, const VType* data) : m_numCol(numCol), m_numRow(numRow) 
 			{
-				memcpy(m_data, data, VSize*VSize * sizeof(VType));
+				m_data.resize(numCol * numRow);
+				memcpy(m_data, data, m_numCol*m_numRow	 * sizeof(VType));
+			}
+			Matrix(u32 numCol, u32 numRow) : m_numCol(numCol), m_numRow(numRow) 
+			{
+				m_data.resize(numCol * numRow);
 			}
 
+
+			Matrix<VType>& operator=(const Matrix<VType>&) = default;
+			Matrix<VType>& operator=(Matrix<VType>&&) = default;
 			MAKE_MATRIX_OPERATION_SCALAR(+);
 			MAKE_MATRIX_OPERATION_SCALAR(*);
 			MAKE_MATRIX_OPERATION_SCALAR(/ );
@@ -83,74 +96,60 @@ namespace doo
 			MAKE_MATRIX_ASSIGNMENT_OPERATION(+=, +);
 			MAKE_MATRIX_ASSIGNMENT_OPERATION(*=, *);
 
-			void Row(uint p_i, const Vec<VSize,VType>& p_vec)
+			VType& operator() (u32 i, u32 j)
 			{
-				for(int j = 0; j<VSize; j++)
-				{
-					m_data[offset(p_i, j)] = p_vec[j];
-				}
+				return m_data[offset(i,j)];
 			}
-		
-			const VType* RowView(uint p_i) const
-			{
-				return m_data + offset(p_i,0);
-			}
+
 			
-			void Column(uint p_j, const Vec<VSize,VType>& p_vec)
+			const VType& operator() (u32 i, u32 j) const
 			{
-				for (int i = 0; i<VSize; i++)
+				return m_data[offset(i,j)];
+			}
+
+			u32 RowCount() const
+			{
+				return m_numRow;
+			}
+
+			u32 ColumnCount() const
+			{
+				return m_numCol;
+			}
+
+			Matrix<VType> operator* (const Matrix<VType>& other)
+			{
+				assert(ColumnCount() == other.RowCount());
+				Matrix<VType> out(RowCount(), ColumnCount());
+				for (int i = 0; i<RowCount(); i++)
 				{
-					m_data[offset(i, p_j)] = p_vec[i];
-				}
-			}
-
-			const VType* ColumnView(uint p_j) const
-			{
-				return m_data + offset(0, p_j);
-			}
-
-			VType& operator() (uint p_i, uint p_j)
-			{
-				return m_data[offset(p_i,p_j)];
-			}
-
-			Matrix<VSize,VType> operator* (const Matrix<VSize,VType>& p_other)
-			{
-				Matrix<VSize,VType> out;
-				for (int i = 0; i<VSize; i++)
-				{
-					for (int j = 0; j<VSize; j++)
+					for (int j = 0; j<other.ColumnCount(); j++)
 					{
 						VType result = 0;
 
-						for (int k = 0; k<VSize; k++)
+						for (int k = 0; k<ColumnCount(); k++)
 						{
-							result += m_data[k*VSize + j] * p_other.m_data[i * VSize + k];
+							result += ro_at(k, j) * other(i,k);
 						}
-						out.m_data[i * VSize + j] = result;
+						out(i,j) = result;
 					}
 				}
 
 				return out;
 			}
 			
-			Matrix<VSize,VType> Transposed()
+			Matrix<VType> Transposed()
 			{
-				Matrix<VSize,VType> out;
-				for (int i = 0; i<VSize; i++)
+				Matrix<VType> out;
+				for (int i = 0; i<m_numRow; i++)
 				{
-					for (int j = 0; j<VSize; j++)
+					for (int j = 0; j<m_numCol; j++)
 					{
-						out[j*VSize + i] = m_data[i*VSize + j];
+						out(j,i) = ro_at(i, j);
 					}
 				}
 
 				return out;
-			}
-			Matrix<VSize,VType>& Transpose()
-			{
-				*this = Transpose();
-				return *this;
 			}
 
 			/*VType Determinant()
@@ -172,30 +171,58 @@ namespace doo
 
 			}*/
 
-			void CalculateLUP(Matrix<VSize,VType>& p_L, Matrix<VSize,VType>& p_U, Matrix<VSize,VType>& p_P)
+/*			void CalculateLUP(Matrix<VType>& L, Matrix<VType>& U, Matrix<VType>& P)
 			{
 				// Eliminations in each column 
-				for(uint n = VSize-1; n>0; n--)
+				for(u32 n = VSize-1; n>0; n--)
 				{
 					// Start where the first zero should be at
-					for(uint i = (VSize - n); i<VSize; i++)
+					for(u32 i = (VSize - n); i<VSize; i++)
 					{
 						// Calculate k, the multiplicator and store it inside L(
 
 
 					}
 				}
+			}*/
+
+			Matrix<VType>& SetToIdentity()
+			{
+				assert(m_numCol == m_numRow);
+				for(u32 i = 0; i<m_numRow; i++)
+				{
+					for(u32 j= 0; j<m_numCol; j++)
+					{
+						if(j == i)
+							(*this)(i,i) = 1;
+						else (*this)(i,j) = 0;
+					}
+				}
+				return *this;
 			}
 
+			Matrix<VType>& SetToZero()
+			{
+				m_data.assign(m_data.size(), 0);
+				return *this;
+			}
 
 		private:
-			static uint offset(uint i, uint j)
+
+			VType ro_at(u32 i, u32 j) const
 			{
-				assert(i < VSize && j< VSize);
-				return i * VSize + j;
+				return m_data[offset(i,j)];
 			}
 
-			VType m_data[VSize * VSize];
+			u32 offset(u32 i, u32 j) const
+			{
+				assert(i < m_numCol && j< m_numRow);
+				return i * m_numRow + j;
+			}
+
+			std::vector<VType> m_data;
+			u32 m_numCol = 0;
+			u32 m_numRow = 0;
 		};
 		
 	}

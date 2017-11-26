@@ -1,44 +1,45 @@
-#include "include/Matrix.h"
-#include "include/Vector.h"
+//#include "include/Matrix.h"
 #include <iostream>
 
-#define SIZE 15
+#define SIZEI 15
+#define SIZEJ 5
 #define T double
 
 
-void printMat(doo::math::Matrix<SIZE,T>& m)
+/*void printMat(doo::math::Matrix<T>& m)
 {
-	for(int i = 0; i<SIZE; i++)
+	for(int i = 0; i<SIZEI; i++)
 	{
-		for(int j =0 ; j<SIZE; j++)
+		for(int j =0 ; j<SIZEJ; j++)
 		{
-			std::cout << m[doo::math::Matrix<SIZE,T>::Get(i, j)] << "\t";
+			std::cout << m(i, j) << "\t";
 		}
 
 		std::cout << std::endl;
 	};
 	
-}
+}*/
 
 int main()
 {
 
-	double in[SIZE*SIZE];
+	/*doo::math::Matrix<T> m(SIZEI,SIZEJ);
 
 	unsigned int count = 0;
-	for(int i = 0; i<SIZE; i++)
+	for(int i = 0; i<SIZEI; i++)
 	{
-		for(int j = 0; j<SIZE; j++)
+		for(int j = 0; j<SIZEJ; j++)
 		{
-			in[i* SIZE + j] = count;
+			m(i,j) = count;
 			count++;
 		}
 	}
 
-	doo::math::Matrix<SIZE,T> m(in);
-
-	m = m*m;
 
 	printMat(m);
+*/
+	std::cout << "HI";
+	//m = m*m;
+	return 0;
 
 }
