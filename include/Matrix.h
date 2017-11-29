@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <cstdio>
 #include "cassert"
 
 #define MAKE_MATRIX_OPERATION_SCALAR( op )\
@@ -171,35 +172,90 @@ namespace doo
                 m_numCol = numCol;
             }
 
-			void DooLittleDecomposed(Matrix<VType>& L, Matrix<VType>& U, Matrix<VType>& P, VType tolerance) const
+			void SwapRow(u32 i, u32 i2)
+			{
+				for(u32 colIndex = 0; colIndex < ColumnCount(); colIndex++)
+				{
+					VType temp = ro_at(i, colIndex);
+					(*this)(i, colIndex) = ro_at(i2, colIndex);
+					(*this)(i2, colIndex) = temp;
+				}
+			}
+
+			u32 LUPDecomposed(Matrix<VType>& L, Matrix<VType>& U, Matrix<VType>& P) const
 			{
 				assert(RowCount() == ColumnCount());
 
                 L.Resize(RowCount(), ColumnCount());
-				L.SetToIdentity();
+				//L.SetToIdentity();
+
+                std::vector<VType> pVec;
+                pVec.reserve(ColumnCount());
+                for(u32 i = 0; i<ColumnCount(); i++) pVec.push_back(i);
 
 				U = (*this);
+				u32 numPivots = 0;
 
-				for(u32 n = 0; n < ColumnCount(); n++)
+				for(u32 j = 0; j<ColumnCount(); j++)
 				{
-					for(u32 i = n+1; i<ColumnCount(); i++)
+					// Get the max element in the jth column starting from j+1 (watch the diagonal):
+					VType max_elem = abs(U(j, j));
+					u32 max_row = j;
+					for(u32 i = j + 1; i < RowCount(); i++)
 					{
-						// Compute the multiplicator:
-						assert(ro_at(n, n) != 0); // For now
-						VType l = -ro_at(i, n) / ro_at(n, n);
-						// Eliminate element from row:
-						for(u32 col = n; col<RowCount(); col++)
-						{
-                            VType computed = ro_at(i, col) + ro_at(n, col) * l;
-                            if (abs(computed) <= tolerance) computed = 0;
-                            U(i,col) = computed;
-                        }
-
-						// Write multiplicator.
-						L(i, n) = -l;
+						VType elem_to_inspect = abs(U(i, j));
+						if (elem_to_inspect > max_elem) {
+							max_elem = elem_to_inspect; max_row = i;
+						}
 					}
+
+					// Okay now we found the max element and the corresponding row -> Switch it with the j th row.
+					if(max_row != j) // The first row had the max elem -> Don't need to swap rows
+					{
+						U.SwapRow(j, max_row);
+                        L.SwapRow(j, max_row);
+                        // j and max_row swap now --> The permutation of j and the permutation of max_row have to swap accordingly.
+                        u32 permutRow = pVec[j];
+                        pVec[j] = pVec[max_row];
+                        pVec[max_row] = permutRow;
+
+                        numPivots++;
+					}
+
+                    for(u32 i = j+1; i<RowCount(); i++)
+					{
+						// Compute the multiplicator k:
+                        assert(U(j,j) != 0);
+						VType k = U(i, j) / U(j, j);
+                        L(i, j) = k; // Fill L with the multiplicators
+
+
+
+						// Go through the columns of that row that matter:
+						for(u32 j_ = j; j_ < ColumnCount(); j_++)
+						{
+							U(i, j_) = U(i,j_) - k * U(j,j_);
+						}
+					}
+
 				}
 
+                P.Resize(RowCount(), ColumnCount());
+                for(u32 i = 0; i<pVec.size(); i++)
+                {
+                    P(pVec[i],i) = 1;
+                }
+
+                // Set the correct 1s. Quick hack right now, don't know whats not working...
+                for( u32 i = 0; i<ColumnCount(); i++)
+                {
+                    for(u32 j = 0; j<ColumnCount(); j++)
+                    {
+                        if ( i == j) L(i,j) = 1;
+                    }
+                }
+
+				return numPivots;
 
 			}
 
@@ -224,8 +280,23 @@ namespace doo
 				return *this;
 			}
 
-		private:
+            void Print() const
+            {
+                for(int i = 0; i<RowCount(); i++)
+                {
+                    for(int j =0 ; j<ColumnCount(); j++)
+                    {
+                        printf("%.3f\t", ro_at(i,j));
+                    }
 
+                    printf("\n");
+                };
+
+                printf("\n");
+            }
+
+
+		private:
 			VType ro_at(u32 i, u32 j) const
 			{
 				return m_data[offset(i,j)];
@@ -241,9 +312,9 @@ namespace doo
 				return i * m_numCol + j;
 			}
 
-			std::vector<VType> m_data;
 			u32 m_numCol = 0;
 			u32 m_numRow = 0;
+			std::vector<VType> m_data;
 		};
 		
 	}
