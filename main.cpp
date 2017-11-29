@@ -1,45 +1,56 @@
-//#include "include/Matrix.h"
-#include <iostream>
+#include "include/Matrix.h"
+#include <cstdio>
+#include "Windows.h"
 
-#define SIZEI 15
-#define SIZEJ 5
+#define SIZEI 10
+#define SIZEJ 10
 #define T double
 
 
-/*void printMat(doo::math::Matrix<T>& m)
+void printMat(const doo::math::Matrix<T>& m)
 {
-	for(int i = 0; i<SIZEI; i++)
+	for(int i = 0; i<m.RowCount(); i++)
 	{
-		for(int j =0 ; j<SIZEJ; j++)
+		for(int j =0 ; j<m.ColumnCount(); j++)
 		{
-			std::cout << m(i, j) << "\t";
+			printf("%.2f\t", m(i,j));
 		}
 
-		std::cout << std::endl;
+		printf("\n");
 	};
+
+	printf("\n");
 	
-}*/
+}
+
+void fillMat(doo::math::Matrix<T>& m)
+{
+	unsigned int count = 1;
+	for(int i = 0; i<m.RowCount(); i++)
+	{
+		for(int j = 0; j<m.ColumnCount(); j++)
+		{
+			m(i,j) = count;
+			//std::cout << count;
+			count++;
+		}
+	}
+}
 
 int main()
 {
 
-	/*doo::math::Matrix<T> m(SIZEI,SIZEJ);
+	doo::math::Matrix<T> m(SIZEI,SIZEJ);
+	fillMat(m);
 
-	unsigned int count = 0;
-	for(int i = 0; i<SIZEI; i++)
-	{
-		for(int j = 0; j<SIZEJ; j++)
-		{
-			m(i,j) = count;
-			count++;
-		}
-	}
+	doo::math::Matrix<T> l, u, p;
+
+	m.DooLittleDecomposed(l, u, p, 0.0001);
+
+	printMat(l);
+	printMat(u);
 
 
-	printMat(m);
-*/
-	std::cout << "HI";
-	//m = m*m;
 	return 0;
 
 }

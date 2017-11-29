@@ -8,12 +8,9 @@
 Matrix<VType> operator op (VType scalar)\
 {\
 	Matrix<VType> out;\
-	for (int i = 0; i<m_numRow; i++)\
+	for (int i = 0; i<m_numRow*m_numCol; i++)\
 	{\
-		for (int j = 0; j<m_numCol	; j++)\
-		{\
-			out(i,j) = (*this)(i,j) op scalar;\
-		}\
+		out.m_data[i] = m_data[i] op scalar;\
 	}\
 	return out;\
 }
@@ -23,15 +20,12 @@ Matrix<VType> operator op (const Matrix<VType>& other)\
 {\
 	assert(other.ColumnCount() == ColumnCount() && RowCount() == other.RowCount());\
 	Matrix<VType> out;\
-	for (int i = 0; i<m_numRow; i++)\
+	for (int i = 0; i<m_numRow*m_numCol; i++)\
 	{\
-		for (int j = 0; j<m_numCol	; j++)\
-		{\
-			out(i,j) = other(i,j) op (*this)(i,j);\
-		}\
+		out[i] = m_data[i] op other.m_data[i];\
 	}\
 	return out;\
-}\
+}
 
 
 #define MAKE_MATRIX_ASSIGNMENT_OPERATION(assign_op, op)\
@@ -72,11 +66,9 @@ namespace doo
 			Matrix(const Matrix<VType>&) = default;
 			Matrix(Matrix<VType>&&) = default;
 			
-			Matrix(u32 numCol, u32 numRow, const VType* data) : m_numCol(numCol), m_numRow(numRow) 
-			{
-				m_data.resize(numCol * numRow);
-				memcpy(m_data, data, m_numCol*m_numRow	 * sizeof(VType));
-			}
+			Matrix(u32 numCol, u32 numRow, const VType* data) : m_numCol(numCol), m_numRow(numRow), m_data(data, data + numCol * numRow)
+			{}
+			
 			Matrix(u32 numCol, u32 numRow) : m_numCol(numCol), m_numRow(numRow) 
 			{
 				m_data.resize(numCol * numRow);
@@ -120,7 +112,8 @@ namespace doo
 			Matrix<VType> operator* (const Matrix<VType>& other)
 			{
 				assert(ColumnCount() == other.RowCount());
-				Matrix<VType> out(RowCount(), ColumnCount());
+				Matrix<VType> out(RowCount(), other.ColumnCount());
+                #pragma omp parallel for collapse(2)
 				for (int i = 0; i<RowCount(); i++)
 				{
 					for (int j = 0; j<other.ColumnCount(); j++)
@@ -129,7 +122,7 @@ namespace doo
 
 						for (int k = 0; k<ColumnCount(); k++)
 						{
-							result += ro_at(k, j) * other(i,k);
+							result += ro_at(i, k) * other(k,j);
 						}
 						out(i,j) = result;
 					}
@@ -138,7 +131,7 @@ namespace doo
 				return out;
 			}
 			
-			Matrix<VType> Transposed()
+			Matrix<VType> Transposed() const
 			{
 				Matrix<VType> out;
 				for (int i = 0; i<m_numRow; i++)
@@ -171,20 +164,44 @@ namespace doo
 
 			}*/
 
-/*			void CalculateLUP(Matrix<VType>& L, Matrix<VType>& U, Matrix<VType>& P)
+            void Resize(u32 numRow, u32 numCol)
+            {
+                m_data.resize(numRow * numCol);
+                m_numRow = numRow;
+                m_numCol = numCol;
+            }
+
+			void DooLittleDecomposed(Matrix<VType>& L, Matrix<VType>& U, Matrix<VType>& P, VType tolerance) const
 			{
-				// Eliminations in each column 
-				for(u32 n = VSize-1; n>0; n--)
+				assert(RowCount() == ColumnCount());
+
+                L.Resize(RowCount(), ColumnCount());
+				L.SetToIdentity();
+
+				U = (*this);
+
+				for(u32 n = 0; n < ColumnCount(); n++)
 				{
-					// Start where the first zero should be at
-					for(u32 i = (VSize - n); i<VSize; i++)
+					for(u32 i = n+1; i<ColumnCount(); i++)
 					{
-						// Calculate k, the multiplicator and store it inside L(
+						// Compute the multiplicator:
+						assert(ro_at(n, n) != 0); // For now
+						VType l = -ro_at(i, n) / ro_at(n, n);
+						// Eliminate element from row:
+						for(u32 col = n; col<RowCount(); col++)
+						{
+                            VType computed = ro_at(i, col) + ro_at(n, col) * l;
+                            if (abs(computed) <= tolerance) computed = 0;
+                            U(i,col) = computed;
+                        }
 
-
+						// Write multiplicator.
+						L(i, n) = -l;
 					}
 				}
-			}*/
+
+
+			}
 
 			Matrix<VType>& SetToIdentity()
 			{
@@ -216,8 +233,12 @@ namespace doo
 
 			u32 offset(u32 i, u32 j) const
 			{
-				assert(i < m_numCol && j< m_numRow);
-				return i * m_numRow + j;
+                if (i >= m_numRow || j>=m_numCol)
+                {
+                    int n = 0; // Debugbreak here
+                }
+				assert(i < m_numRow && j< m_numCol);
+				return i * m_numCol + j;
 			}
 
 			std::vector<VType> m_data;
