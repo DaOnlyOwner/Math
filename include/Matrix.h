@@ -1,9 +1,9 @@
 #pragma once
 
-#include <cstdint>
 #include <vector>
-#include <cstdio>
+#include "cstdio"
 #include "cassert"
+#include "Common.h"
 
 #define MAKE_MATRIX_OPERATION_SCALAR( op )\
 Matrix<VType> operator op (VType scalar)\
@@ -40,22 +40,6 @@ Matrix<VType>& operator assign_op (const Matrix<VType>& other)\
 
 namespace doo
 {
-
-
-		typedef int_fast8_t s8;
-		typedef int_fast16_t s16;
-		typedef int_fast32_t s32;
-
-		typedef uint_fast8_t u8;
-		typedef uint_fast16_t u16;
-		typedef uint_fast32_t u32;
-		
-		typedef float f32;
-		typedef double f64;
-	
-
-
-
 	namespace math
 	{
 		template <typename VType = float>
@@ -184,76 +168,63 @@ namespace doo
 
 			u32 LUPDecomposed(Matrix<VType>& L, Matrix<VType>& U, Matrix<VType>& P) const
 			{
+				std::vector<u32> pivotVec;
+				Matrix<VType> LU;
+				u32 out = LUPDecomposed(LU, pivotVec);
+				L.Resize(LU.RowCount(),LU.ColumnCount());
+				L.SetToIdentity();
+				U.Resize(LU.RowCount(),LU.ColumnCount());
+				P.Resize(LU.RowCount(), LU.ColumnCount());
+				for(u32 i = 0; i<RowCount(); i++)
+				{
+					for(u32 j = 0; j<ColumnCount(); j++)
+					{
+						if(j>=i)
+						{
+							U(i, j) = LU(i, j);
+						}
+
+						else L(i, j) = LU(i, j);
+
+					}
+				}
+
+				for(u32 i = 0; i<pivotVec.size(); i++)
+				{
+					P(pivotVec[i],i) = 1;
+				}
+
+				return out;
+
+			}
+
+
+			u32 LUPDecomposed(Matrix<VType>& LU, std::vector<u32>& pivotVec) const
+			{
 				assert(RowCount() == ColumnCount());
+                pivotVec.reserve(ColumnCount());
+                for(u32 i = 0; i<ColumnCount(); i++) pivotVec.push_back(i);
 
-                L.Resize(RowCount(), ColumnCount());
-				//L.SetToIdentity();
-
-                std::vector<VType> pVec;
-                pVec.reserve(ColumnCount());
-                for(u32 i = 0; i<ColumnCount(); i++) pVec.push_back(i);
-
-				U = (*this);
+				LU = (*this);
 				u32 numPivots = 0;
 
 				for(u32 j = 0; j<ColumnCount(); j++)
 				{
-					// Get the max element in the jth column starting from j+1 (watch the diagonal):
-					VType max_elem = abs(U(j, j));
-					u32 max_row = j;
-					for(u32 i = j + 1; i < RowCount(); i++)
-					{
-						VType elem_to_inspect = abs(U(i, j));
-						if (elem_to_inspect > max_elem) {
-							max_elem = elem_to_inspect; max_row = i;
-						}
-					}
-
-					// Okay now we found the max element and the corresponding row -> Switch it with the j th row.
-					if(max_row != j) // The first row had the max elem -> Don't need to swap rows
-					{
-						U.SwapRow(j, max_row);
-                        L.SwapRow(j, max_row);
-                        // j and max_row swap now --> The permutation of j and the permutation of max_row have to swap accordingly.
-                        u32 permutRow = pVec[j];
-                        pVec[j] = pVec[max_row];
-                        pVec[max_row] = permutRow;
-
-                        numPivots++;
-					}
+					pivot(LU, pivotVec, numPivots, j);
 
                     for(u32 i = j+1; i<RowCount(); i++)
 					{
 						// Compute the multiplicator k:
-                        assert(U(j,j) != 0);
-						VType k = U(i, j) / U(j, j);
-                        L(i, j) = k; // Fill L with the multiplicators
-
-
-
-						// Go through the columns of that row that matter:
-						for(u32 j_ = j; j_ < ColumnCount(); j_++)
+						VType k = LU(i, j) / LU(j, j);
+                        //printf("%f ... %f\n",LU(i,j), LU(j,j));
+                        if ( LU(i,j) == 0 && LU(j,j) == 0) k = 1; // Hack to ensure stability
+                        LU(i, j) = k; // Fill  with the multiplicators
+						for(u32 j_ = j+1; j_ < ColumnCount(); j_++)
 						{
-							U(i, j_) = U(i,j_) - k * U(j,j_);
+							LU(i, j_) = LU(i,j_) - k * LU(j,j_);
 						}
 					}
-
 				}
-
-                P.Resize(RowCount(), ColumnCount());
-                for(u32 i = 0; i<pVec.size(); i++)
-                {
-                    P(pVec[i],i) = 1;
-                }
-
-                // Set the correct 1s. Quick hack right now, don't know whats not working...
-                for( u32 i = 0; i<ColumnCount(); i++)
-                {
-                    for(u32 j = 0; j<ColumnCount(); j++)
-                    {
-                        if ( i == j) L(i,j) = 1;
-                    }
-                }
 
 				return numPivots;
 
@@ -286,17 +257,41 @@ namespace doo
                 {
                     for(int j =0 ; j<ColumnCount(); j++)
                     {
-                        printf("%.3f\t", ro_at(i,j));
+                        printf("%.2f\t",ro_at(i,j));
                     }
-
-                    printf("\n");
+					printf("\n");
                 };
-
-                printf("\n");
-            }
+				
+				printf("\n");
+			}
 
 
 		private:
+			void pivot(Matrix<VType>& LU, std::vector<u32>& pivotVec, u32& numPivots, u32 j) const
+			{
+				// Get the max element in the jth column starting from j+1 (watch the diagonal):
+				VType max_elem = abs(LU(j, j));
+				u32 max_row = j;
+				for(u32 i = j + 1; i < RowCount(); i++)
+				{
+					VType elem_to_inspect = abs(LU(i, j));
+					if (elem_to_inspect > max_elem) {
+						max_elem = elem_to_inspect; max_row = i;
+					}
+				}
+				// Okay now we found the max element and the corresponding row -> Switch it with the j th row.
+				if(max_row != j) // The first row had the max elem -> Don't need to swap rows
+				{
+					LU.SwapRow(j, max_row);
+					// j and max_row swap now --> The permutation of j and the permutation of max_row have to swap accordingly.
+					u32 permutRow = pivotVec[j];
+					pivotVec[j] = pivotVec[max_row];
+					pivotVec[max_row] = permutRow;
+
+					numPivots++;
+				}
+			}
+
 			VType ro_at(u32 i, u32 j) const
 			{
 				return m_data[offset(i,j)];
@@ -306,7 +301,7 @@ namespace doo
 			{
                 if (i >= m_numRow || j>=m_numCol)
                 {
-                    int n = 0; // Debugbreak here
+                    __debugbreak();
                 }
 				assert(i < m_numRow && j< m_numCol);
 				return i * m_numCol + j;
